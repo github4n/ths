@@ -6,8 +6,6 @@ import requests
 def get_token(query):
 
     url = "https://www.iwencai.com/data-robot/get-fusion-data"
-    # query = "业绩预增"
-    # query = "涨停封单量>90万股"
     payload = "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"tid\"\r\n\r\nstockpick\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW" \
               "\r\nContent-Disposition: form-data; name=\"querytype\"\r\n\r\nstock\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: " \
               "form-data; name=\"w\"\r\n\r\n"+ query +"\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"robot\"\r\n\r\n{\"source\":\"Ths_iwencai_Xuangu\",\"user_id\":\"\",\"log_info\":\"{\\\"other_info\\\":\\\"{\\\\\\\"eventId\\\\\\\":\\\\\\\"iwencai_pc_hp_history\\\\\\\",\\\\\\\"ct\\\\\\\":1533288325154}\\\",\\\"other_utype\\\":\\\"random\\\",\\\"other_uid\\\":\\\"Ths_iwencai_Xuangu_71apin2h647coi44q5cjkbhnfzaopwu9\\\"}\",\"user_name\":\"vj1zuoimhp\",\"version\":\"1.5\"}\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW--"
@@ -31,10 +29,9 @@ def get_token(query):
     # print(result)
     token = result["data"]["wencai_data"]["result"]["token"]
     total_row = result["data"]["robot_data"]["answer"][0]["table"][0]["total_row"]
-    # print(token)
-    print(total_row)
+    print('token值', token)
+    print('符合个数：',total_row)
     return token, total_row
-
 
 # token,total_row = get_token("预测涨停板")
 # print(token,total_row)
