@@ -34,6 +34,8 @@ def get_data(query):
     save_path = base_path + ".csv"
     xlsx_path = base_path + ".xlsx"
 
+    writer = pd.ExcelWriter(xlsx_path, engine='xlsxwriter')
+
     token, total_row = get_token.get_token(query) # 获取本次查询token值
     pages = ceil(int(total_row)/70)
     payload = "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"token\"\r\n\r\n"+ token +\
@@ -41,13 +43,20 @@ def get_data(query):
                       "WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"showType\"\r\n\r\n[\"\",\"\",\"onTable\",\"onTable\",\"onTable\"]\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW--"
     response = requests.request("POST", url, data=payload.encode(encoding='UTF-8'), headers=headers,timeout =5)
     result = response.json()  # 返回首页结果
-    result_title = get_title(result['title'])  # 表头
-    df1 = pd.DataFrame.from_dict(result_title).T
-    df1.to_csv(save_path,mode='a',header=False,index=False,encoding='GBK')
+    result_title,result_detail = get_title(result['title'])  # 表头
+    df0 = pd.DataFrame(result_title).T
+    df_title = pd.DataFrame(result_detail).T.append(df0)    # 拼接 1
+    # df_title.to_csv(save_path, mode='a', header=True, index=False, encoding='GBK')
+
     body = get_body(result['result'])  # 首页表体
-    df2 = pd.DataFrame.from_dict(body)
-    df2.to_csv(save_path, mode='a',header=False,index=False,encoding='GBK')
+    df_body_first = pd.DataFrame.from_dict(body)
+    df_all = df_title.append(df_body_first) # 拼接 2
+    # df_body_first.to_csv(save_path, mode='a',header=False,index=False,encoding='GBK')
+
+    df_all.to_excel(writer, sheet_name='data', header=False, index=False)  # 拼接 完再写入Excel
+
     # 获取其他页表体
+
     if pages >= 2:
         for p in range(2, pages + 1):
             payload = "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"token\"\r\n\r\n" + token + \
@@ -58,30 +67,13 @@ def get_data(query):
             response = requests.request("POST", url, data=payload.encode(encoding='UTF-8'), headers=headers,timeout =10)
             result = response.json() # 返回其他页结果
             other_body = get_body(result['result'])
-            df2 = pd.DataFrame.from_dict(other_body)  # 其他页表体
-            df2.to_csv(save_path, mode='a',header=False,index=False, encoding='GBK')
-    # xlsxwriter创建excel默认sheet1 并添加 备注信息
-    workbook = xlsxwriter.Workbook(xlsx_path)
-    workbook.set_properties({'comments': query})
-    workbook.close()
-    # CSV文件转XLSX
-    writer = pd.ExcelWriter(xlsx_path,engine='openpyxl')
-    book = load_workbook(writer.path)
-    writer.book = book
-    condition = ['筛选条件：',query]
-    condf = pd.DataFrame(condition).T
-    condf.to_excel(writer, '筛选条件',header=False, index=False)  # 添加sheet1   筛选条件
-    csv_to_xlsx = pd.read_csv(save_path, encoding='GBK')
-    csv_to_xlsx.to_excel(writer, sheet_name='data', index=False, freeze_panes=(1, 1))  # 添加sheet2  data
-    # 删除由xlsxwriter生成的默认sheet1
-    std = book.worksheets
-    book.remove(std[0])
+            df_body_other = pd.DataFrame.from_dict(other_body)  # 其他页表体
+            df_all.append(df_body_other)  # 拼接 3
+            # df_body_other.to_csv(save_path, mode='a',header=False,index=False, encoding='GBK')
+        df_all.to_excel(writer, sheet_name='data', header=False, index=False)  # 拼接 完再写入Excel
     writer.close()
-    print('数据导出成功！\n保存路径：', xlsx_path)
-    # 删除源CSV文件
-    # if os.path.exists(save_path):
-    #     os.remove(save_path)
-
+    print('csv数据导出成功！')
+    # csv_to_excel(save_path,xlsx_path,query)
 # 直接双击文件执行
 # while True:
 #     get_data(str(input('请输入筛选条件：')))
@@ -92,18 +84,46 @@ def get_data(query):
 
 def get_title(title_result):
     result_title = []
-    for i in title_result:
-        if isinstance(i,str):
-            j = i.replace('\r', '').replace('<br>', '')
-            # result_new.append(j.replace('<br>', ''))
-            result_title.append(j)
-        if isinstance(i,dict):
-            (key, value), = i.items()
-            key = key.replace('\r', '').replace('<br>', '')
-            for v in value:
-                # print(key + v)
-                result_title.append(key + v)
-    return result_title
+    result_detail = []
+    if '{' in str(title_result):
+        print('true')
+        for i in title_result:
+            if isinstance(i, str):
+                j = i.replace('\r', '').replace('<br>', '')
+                # result_new.append(j.replace('<br>', ''))
+                result_detail.append('')
+                result_title.append(j)
+
+            if isinstance(i, dict):
+                (key, value), = i.items()
+                key = key.replace('\r', '').replace('<br>', '')
+                # result_title.append(key + '\n' + value[0])
+                result_detail.append(key)
+                for d in value[1:]:
+                    result_detail.append('')
+                for v in value:
+                    result_title.append(v)
+    else:
+        print('False')
+        for i in title_result:
+             j = i.replace('\r', '').replace('<br>', '')
+             result_title.append(j)
+
+    return result_title,result_detail
+# def get_title(title_result):
+#     result_title = []
+#     for i in title_result:
+#         if isinstance(i,str):
+#             j = i.replace('\r', '').replace('<br>', '')
+#             # result_new.append(j.replace('<br>', ''))
+#             result_title.append(j)
+#         if isinstance(i,dict):
+#             (key, value), = i.items()
+#             key = key.replace('\r', '').replace('<br>', '')
+#             # result_title.append(key + '\n' + value[0])
+#             for v in value:
+#                 result_title.append(key + '\n' + v)
+#     return result_title
 
 # 获取表体
 
@@ -137,11 +157,38 @@ def get_body(body_result):
         body.append(new_list)
     return body
 
+# 将导出的csv转为xlsx
+def csv_to_excel(csv_path,xlsx_path,query):
+    # xlsxwriter创建excel默认sheet1 并添加 备注信息
+    workbook = xlsxwriter.Workbook(xlsx_path)
+    workbook.set_properties({'comments': query})
+    workbook.close()
+
+    # CSV文件转XLSX
+    writer = pd.ExcelWriter(xlsx_path, engine='openpyxl')
+    # pd.set_option('max_colwidth', 20)  # 宽度
+    book = load_workbook(writer.path)
+    writer.book = book
+    condition = ['筛选条件：', query]
+    condf = pd.DataFrame(condition).T
+    condf.to_excel(writer, '筛选条件', header=False, index=False)  # 添加sheet1   筛选条件
+    csv_to_xlsx = pd.read_csv(csv_path, encoding='GBK')
+    csv_to_xlsx.to_excel(writer, sheet_name='data',header=False, index=False, freeze_panes=(1, 1))  # 添加sheet2  data
+    # 删除由xlsxwriter生成的默认sheet1
+    std = book.worksheets
+    book.remove(std[0])
+    writer.close()
+    print('xlsx转换成功！\n保存路径：', xlsx_path)
+    # 删除源CSV文件
+    # if os.path.exists(save_path):
+    #     os.remove(save_path)
+    #     print('已删源CSV')
 
 # get_data("预测涨停板")
 # get_data("量比排名前20")
-# get_data("换手率排名前100")
+get_data("换手率排名前100")
 # get_data("近2天公告利好")
 # get_data("业绩预增")
 # get_data("大单净量>0 筹码集中")
-get_data("连续3日 dde大单净量大于0")
+# get_data("连续3日 dde大单净量大于0.5")
+# get_data("连续5日 换手率>1")
