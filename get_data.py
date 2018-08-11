@@ -11,7 +11,7 @@ from math import ceil
 import time
 import datetime
 sys.path.append("..")
-now = datetime.datetime.now().strftime('%Y%m%d%H%M')
+now = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
 url = "https://www.iwencai.com/stockpick/cache"
 headers = {
     'accept-encoding': "gzip, deflate, br",
@@ -43,17 +43,16 @@ def get_data(query):
                       "WebKitFormBoundary7MA4YWxkTrZu0gW\r\nContent-Disposition: form-data; name=\"showType\"\r\n\r\n[\"\",\"\",\"onTable\",\"onTable\",\"onTable\"]\r\n------WebKitFormBoundary7MA4YWxkTrZu0gW--"
     response = requests.request("POST", url, data=payload.encode(encoding='UTF-8'), headers=headers,timeout =5)
     result = response.json()  # 返回首页结果
-    result_title,result_detail = get_title(result['title'])  # 表头
+
+    result_title,result_detail,is_merge = get_title(result['title'])  # 表头
     df0 = pd.DataFrame(result_title).T
     df_title = pd.DataFrame(result_detail).T.append(df0)    # 拼接 1
-    # df_title.to_csv(save_path, mode='a', header=True, index=False, encoding='GBK')
 
     body = get_body(result['result'])  # 首页表体
     df_body_first = pd.DataFrame.from_dict(body)
     df_all = df_title.append(df_body_first) # 拼接 2
-    # df_body_first.to_csv(save_path, mode='a',header=False,index=False,encoding='GBK')
 
-    df_all.to_excel(writer, sheet_name='data', header=False, index=False)  # 拼接 完再写入Excel
+    deal_excel(is_merge, df_all, writer, result_detail,query) #处理写入
 
     # 获取其他页表体
 
@@ -69,24 +68,25 @@ def get_data(query):
             other_body = get_body(result['result'])
             df_body_other = pd.DataFrame.from_dict(other_body)  # 其他页表体
             df_all.append(df_body_other)  # 拼接 3
-            # df_body_other.to_csv(save_path, mode='a',header=False,index=False, encoding='GBK')
-        df_all.to_excel(writer, sheet_name='data', header=False, index=False)  # 拼接 完再写入Excel
+        # df_all.to_excel(writer, sheet_name='data', header=False, index=False)  # 拼接 完再写入Excel
+        deal_excel(is_merge, df_all, writer, result_detail,query)  # 处理写入
+
     writer.close()
-    print('csv数据导出成功！')
+    print('xlsx数据导出成功!\n'+'路径：'+ xlsx_path)
     # csv_to_excel(save_path,xlsx_path,query)
 # 直接双击文件执行
 # while True:
 #     get_data(str(input('请输入筛选条件：')))
 #     input('继续请按Enter键')
 
+
 # 获取表头
-
-
 def get_title(title_result):
     result_title = []
     result_detail = []
     if '{' in str(title_result):
-        print('true')
+        # print('true')
+        is_merge = 1
         for i in title_result:
             if isinstance(i, str):
                 j = i.replace('\r', '').replace('<br>', '')
@@ -104,30 +104,17 @@ def get_title(title_result):
                 for v in value:
                     result_title.append(v)
     else:
-        print('False')
+        # print('False')
+        is_merge = 0
         for i in title_result:
              j = i.replace('\r', '').replace('<br>', '')
              result_title.append(j)
 
-    return result_title,result_detail
-# def get_title(title_result):
-#     result_title = []
-#     for i in title_result:
-#         if isinstance(i,str):
-#             j = i.replace('\r', '').replace('<br>', '')
-#             # result_new.append(j.replace('<br>', ''))
-#             result_title.append(j)
-#         if isinstance(i,dict):
-#             (key, value), = i.items()
-#             key = key.replace('\r', '').replace('<br>', '')
-#             # result_title.append(key + '\n' + value[0])
-#             for v in value:
-#                 result_title.append(key + '\n' + v)
-#     return result_title
+
+    return result_title,result_detail,is_merge
+
 
 # 获取表体
-
-
 def get_body(body_result):
     # # 处理一个单元格下存在多个表格情况
     # print(result[0][4][0]['UID']) # 定位到字典里的值
@@ -157,7 +144,40 @@ def get_body(body_result):
         body.append(new_list)
     return body
 
-# 将导出的csv转为xlsx
+
+# Excel写入与美化
+def deal_excel(is_merge, df_all, writer, result_detail, query):
+    # 如果存在合并单元格，则执行！
+    if is_merge == 1:
+        df_all.to_excel(writer, sheet_name='data', header=False, index=False, freeze_panes=(2, 2))  # 拼接 完再写入Excel
+        workbook = writer.book
+        worksheet = writer.sheets['data']
+        worksheet.set_zoom(90)
+        workbook.set_properties({'comments': query})
+
+        new_list = []
+        text_list = []
+        for i in result_detail:
+            if i != '':
+                id = result_detail.index(i)
+                new_list.append(id)
+                text_list.append(i)
+        # print(new_list)
+        # print(text_list)
+        merge_format = workbook.add_format({'align': 'center'})
+        for i in new_list:
+            for j in range(0, len(new_list)):
+                num = new_list[1] - new_list[0] - 1  # 当结果中只有一项是合并单元格时，已知会有问题
+                worksheet.merge_range(0, new_list[j], 0, new_list[j] + num, text_list[j], merge_format)
+    else:
+        df_all.to_excel(writer, sheet_name='data', header=False, index=False, freeze_panes=(1, 1))  # 拼接 完再写入Excel
+        workbook = writer.book
+        worksheet = writer.sheets['data']
+        worksheet.set_zoom(90)
+        workbook.set_properties({'comments': query})
+
+
+# 将导出的csv转为xlsx。此方法弃用！！
 def csv_to_excel(csv_path,xlsx_path,query):
     # xlsxwriter创建excel默认sheet1 并添加 备注信息
     workbook = xlsxwriter.Workbook(xlsx_path)
@@ -184,11 +204,12 @@ def csv_to_excel(csv_path,xlsx_path,query):
     #     os.remove(save_path)
     #     print('已删源CSV')
 
+# 程序入口
 # get_data("预测涨停板")
-# get_data("量比排名前20")
-get_data("换手率排名前100")
+# get_data("量比排名前80")
+# get_data("换手率排名前100")
 # get_data("近2天公告利好")
 # get_data("业绩预增")
 # get_data("大单净量>0 筹码集中")
 # get_data("连续3日 dde大单净量大于0.5")
-# get_data("连续5日 换手率>1")
+get_data("连续5日 换手率>7")
