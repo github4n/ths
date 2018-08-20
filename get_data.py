@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import sys
-import os
 from openpyxl import load_workbook
 import xlsxwriter
 import requests
@@ -11,7 +10,7 @@ from math import ceil
 import time
 import datetime
 sys.path.append("..")
-now = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+
 url = "https://www.iwencai.com/stockpick/cache"
 headers = {
     'accept-encoding': "gzip, deflate, br",
@@ -29,9 +28,9 @@ headers = {
 
 
 def get_data(query):
-
+    now = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
     base_path = "E:/iwen/data/" + now   # 保存路径
-    save_path = base_path + ".csv"
+    # save_path = base_path + ".csv"
     xlsx_path = base_path + ".xlsx"
 
     writer = pd.ExcelWriter(xlsx_path, engine='xlsxwriter')
@@ -149,9 +148,17 @@ def get_body(body_result):
 def deal_excel(is_merge, df_all, writer, result_detail, query):
     # 如果存在合并单元格，则执行！
     if is_merge == 1:
+
         df_all.to_excel(writer, sheet_name='data', header=False, index=False, freeze_panes=(2, 2))  # 拼接 完再写入Excel
         workbook = writer.book
         worksheet = writer.sheets['data']
+
+        cell_format = workbook.add_format({'bold': True})
+        worksheet.set_row(1, None, cell_format)  # 设置标题为粗体
+
+        worksheet.autofilter(1,0,1, df_all.shape[1])
+        worksheet.filter_column('A', 'x != 300*')  # 过滤 300开头的代码
+
         worksheet.set_zoom(90)
         workbook.set_properties({'comments': query})
 
@@ -164,15 +171,28 @@ def deal_excel(is_merge, df_all, writer, result_detail, query):
                 text_list.append(i)
         # print(new_list)
         # print(text_list)
-        merge_format = workbook.add_format({'align': 'center'})
         for i in new_list:
             for j in range(0, len(new_list)):
                 num = new_list[1] - new_list[0] - 1  # 当结果中只有一项是合并单元格时，已知会有问题
-                worksheet.merge_range(0, new_list[j], 0, new_list[j] + num, text_list[j], merge_format)
+                if (j % 2) == 0:
+                    merge_format = workbook.add_format({'align': 'center', 'bold': True})
+                    merge_format.set_fg_color('#7CCD7C')
+                    worksheet.merge_range(0, new_list[j], 0, new_list[j] + num, text_list[j], merge_format)
+                else:
+                    merge_format = workbook.add_format({'align': 'center', 'bold': True})
+                    merge_format.set_fg_color('#7AC5CD')
+                    worksheet.merge_range(0, new_list[j], 0, new_list[j] + num, text_list[j], merge_format)
     else:
         df_all.to_excel(writer, sheet_name='data', header=False, index=False, freeze_panes=(1, 1))  # 拼接 完再写入Excel
         workbook = writer.book
         worksheet = writer.sheets['data']
+
+        cell_format = workbook.add_format({'bold': True})
+        worksheet.set_row(0, None, cell_format)  # 设置标题为粗体
+
+        worksheet.autofilter(0, 0, 0, df_all.shape[1])
+        worksheet.filter_column('A', 'x != 300*')  # 过滤 300开头的代码
+
         worksheet.set_zoom(90)
         workbook.set_properties({'comments': query})
 
@@ -205,11 +225,13 @@ def csv_to_excel(csv_path,xlsx_path,query):
     #     print('已删源CSV')
 
 # 程序入口
-# get_data("预测涨停板")
-# get_data("量比排名前80")
-# get_data("换手率排名前100")
+get_data("预测涨停板")
+get_data("量比排名前20")
+get_data("换手率排名前20")
+
+get_data("大单净量>0 筹码集中")
+
 # get_data("近2天公告利好")
+# get_data("连续3日 dde大单净量大于0.3")
 # get_data("业绩预增")
-# get_data("大单净量>0 筹码集中")
-# get_data("连续3日 dde大单净量大于0.5")
-get_data("连续5日 换手率>7")
+# get_data("连续5日 换手率>7")
